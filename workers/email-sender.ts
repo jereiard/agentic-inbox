@@ -73,6 +73,9 @@ async function getResendMessageId(
 	}
 
 	const result = (await response.json()) as ResendRetrieveResponse;
+	console.log(
+		`[resend] retrieve emailId=${emailId} status=${response.status} messageId=${result.message_id ?? "<missing>"}`,
+	);
 	return result.message_id ? normalizeMessageId(result.message_id) : undefined;
 }
 
@@ -162,6 +165,10 @@ export async function sendEmail(
 		throw error;
 	}
 
+	console.log(`[resend] accepted emailId=${result.id}`);
 	const providerMessageId = await getResendMessageId(apiKey, result.id);
+	console.log(
+		`[resend] resolved emailId=${result.id} providerMessageId=${providerMessageId ?? "<unavailable>"}`,
+	);
 	return { messageId: result.id, providerMessageId };
 }

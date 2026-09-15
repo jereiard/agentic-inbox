@@ -536,6 +536,10 @@ export class MailboxDO extends DurableObject<Env> {
 			.where(eq(schema.emails.id, id))
 			.get();
 
+		console.log(
+			`[thread] update start emailId=${id} oldThreadId=${current?.thread_id ?? "<missing>"} providerMessageId=${messageId} replaceRoot=${current?.thread_id === id}`,
+		);
+
 		let rawHeaders = current?.raw_headers ?? null;
 		if (rawHeaders) {
 			try {
@@ -568,7 +572,11 @@ export class MailboxDO extends DurableObject<Env> {
 			.where(eq(schema.emails.id, id))
 			.run();
 
-		return this.getEmail(id);
+		const updated = await this.getEmail(id);
+		console.log(
+			`[thread] update done emailId=${id} messageId=${updated?.message_id ?? "<missing>"} threadId=${updated?.thread_id ?? "<missing>"}`,
+		);
+		return updated;
 	}
 
 	async markThreadRead(threadId: string) {
