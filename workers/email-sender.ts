@@ -56,27 +56,54 @@ async function getResendMessageId(
 	apiKey: string,
 	emailId: string,
 ): Promise<string | undefined> {
-	const response = await fetch(
-		`https://api.resend.com/emails/${encodeURIComponent(emailId)}`,
-		{
-			headers: {
-				Authorization: `Bearer ${apiKey}`,
-			},
-		},
-	);
+	// Resend can accept the message before its final SMTP Message-ID is exposed
+	// by the Retrieve Email endpoint. Retry briefly so the SENT record can be
+	// reconciled with the Message-ID that recipients actually see.
+	const retryDelaysMs = [0, 250, 750, 1500, 3000] as const;
 
-	if (!response.ok) {
-		console.warn(
-			`Could not retrieve Resend Message-ID for ${emailId}: HTTP ${response.status}`,
+	for (let attempt = 0; attempt < retryDelaysMs.length; attempt++) {
+		const delayMs = retryDelaysMs[attempt];
+		if (delayMs > 0) {
+			await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+		}
+
+		const response = await fetch(
+			`https://api.resend.com/emails/${encodeURIComponent(emailId)}`,
+			{
+				headers: {
+					Authorization: `Bearer ${apiKey}`,
+				},
+			},
 		);
-		return undefined;
+
+		let result: ResendRetrieveResponse = {};
+		try {
+			result = (await response.json()) as ResendRetrieveResponse;
+		} catch {
+			// Keep an empty response so the status and retry decision are still logged.
+		}
+
+		console.log(
+			`[resend] retrieve emailId=${emailId} attempt=${attempt + 1}/${retryDelaysMs.length} delayMs=${delayMs} status=${response.status} messageId=${result.message_id ?? "<missing>"}`,
+		);
+
+		if (response.ok && result.message_id) {
+			return normalizeMessageId(result.message_id);
+		}
+
+		// Authentication/permission/validation errors will not improve with retry.
+		if (!response.ok && response.status >= 400 && response.status < 500 && response.status !== 429) {
+			console.warn(
+				`Could not retrieve Resend Message-ID for ${emailId}: HTTP ${response.status}`,
+			);
+			return undefined;
+		}
 	}
 
-	const result = (await response.json()) as ResendRetrieveResponse;
-	console.log(
-		`[resend] retrieve emailId=${emailId} status=${response.status} messageId=${result.message_id ?? "<missing>"}`,
+	console.warn(
+		`Resend Message-ID was not available after ${retryDelaysMs.length} attempts for ${emailId}`,
 	);
-	return result.message_id ? normalizeMessageId(result.message_id) : undefined;
+	return undefined;
 }
 
 function formatAddress(address: EmailAddress): string {
