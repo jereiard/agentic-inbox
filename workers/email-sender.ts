@@ -40,6 +40,42 @@ type ResendApiResponse = {
 	statusCode?: number;
 };
 
+type ResendRetrieveResponse = {
+	message_id?: string;
+};
+
+function normalizeMessageId(value: string): string {
+	const trimmed = value.trim();
+	if (trimmed.startsWith("<") && trimmed.endsWith(">")) {
+		return trimmed.slice(1, -1);
+	}
+	return trimmed;
+}
+
+async function getResendMessageId(
+	apiKey: string,
+	emailId: string,
+): Promise<string | undefined> {
+	const response = await fetch(
+		`https://api.resend.com/emails/${encodeURIComponent(emailId)}`,
+		{
+			headers: {
+				Authorization: `Bearer ${apiKey}`,
+			},
+		},
+	);
+
+	if (!response.ok) {
+		console.warn(
+			`Could not retrieve Resend Message-ID for ${emailId}: HTTP ${response.status}`,
+		);
+		return undefined;
+	}
+
+	const result = (await response.json()) as ResendRetrieveResponse;
+	return result.message_id ? normalizeMessageId(result.message_id) : undefined;
+}
+
 function formatAddress(address: EmailAddress): string {
 	if (typeof address === "string") return address;
 	if (!address.name) return address.email;
@@ -58,7 +94,7 @@ function formatAddress(address: EmailAddress): string {
 export async function sendEmail(
 	apiKey: string,
 	params: SendEmailParams,
-): Promise<{ messageId: string }> {
+): Promise<{ messageId: string; providerMessageId?: string }> {
 	if (!apiKey) {
 		const error = new Error("Resend API key is not configured. Set the Worker EMAIL secret.") as Error & {
 			code?: string;
@@ -126,5 +162,6 @@ export async function sendEmail(
 		throw error;
 	}
 
-	return { messageId: result.id };
+	const providerMessageId = await getResendMessageId(apiKey, result.id);
+	return { messageId: result.id, providerMessageId };
 }

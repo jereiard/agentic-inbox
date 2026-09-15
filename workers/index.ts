@@ -202,11 +202,16 @@ app.post("/api/v1/mailboxes/:mailboxId/emails", async (c: AppContext) => {
 	}, attachmentData);
 
 	c.executionCtx.waitUntil(
-		sendEmail(c.env.EMAIL, {
-			to, cc, bcc, from, subject, html, text,
-			attachments: attachments?.map((att) => ({ content: att.content, filename: att.filename, type: att.type, disposition: att.disposition || "attachment", contentId: att.contentId })),
-			...(in_reply_to ? { headers: buildThreadingHeaders(in_reply_to, references || []) } : {}),
-		}).catch((e) => console.error("Deferred email delivery failed:", (e as Error).message)),
+		(async () => {
+			const sent = await sendEmail(c.env.EMAIL, {
+				to, cc, bcc, from, subject, html, text,
+				attachments: attachments?.map((att) => ({ content: att.content, filename: att.filename, type: att.type, disposition: att.disposition || "attachment", contentId: att.contentId })),
+				...(in_reply_to ? { headers: buildThreadingHeaders(in_reply_to, references || []) } : {}),
+			});
+			if (sent.providerMessageId) {
+				await stub.updateEmailMessageId(messageId, sent.providerMessageId);
+			}
+		})().catch((e) => console.error("Deferred email delivery failed:", (e as Error).message)),
 	);
 	return c.json({ id: messageId, status: "sent" }, 202);
 });

@@ -526,6 +526,42 @@ export class MailboxDO extends DurableObject<Env> {
 		return this.getEmail(id);
 	}
 
+	async updateEmailMessageId(id: string, messageId: string) {
+		const current = this.db
+			.select({ raw_headers: schema.emails.raw_headers })
+			.from(schema.emails)
+			.where(eq(schema.emails.id, id))
+			.get();
+
+		let rawHeaders = current?.raw_headers ?? null;
+		if (rawHeaders) {
+			try {
+				const headers = JSON.parse(rawHeaders) as Array<{ key?: string; name?: string; value?: string }>;
+				if (Array.isArray(headers)) {
+					const messageIdHeader = headers.find(
+						(header) => (header.key || header.name || "").toLowerCase() === "message-id",
+					);
+					if (messageIdHeader) {
+						messageIdHeader.value = `<${messageId}>`;
+					} else {
+						headers.push({ key: "message-id", value: `<${messageId}>` });
+					}
+					rawHeaders = JSON.stringify(headers);
+				}
+			} catch {
+				// Keep existing raw_headers if they cannot be parsed.
+			}
+		}
+
+		this.db
+			.update(schema.emails)
+			.set({ message_id: messageId, ...(rawHeaders ? { raw_headers: rawHeaders } : {}) })
+			.where(eq(schema.emails.id, id))
+			.run();
+
+		return this.getEmail(id);
+	}
+
 	async markThreadRead(threadId: string) {
 		this.ctx.storage.sql.exec(
 			`UPDATE emails SET read = 1 WHERE thread_id = ? AND read = 0`,

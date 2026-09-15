@@ -88,23 +88,28 @@ export async function handleReplyEmail(c: AppContext) {
 	await stub.markThreadRead(thread_id);
 
 	c.executionCtx.waitUntil(
-		sendEmail(c.env.EMAIL, {
-			to,
-			cc,
-			bcc,
-			from,
-			subject,
-			html,
-			text,
-			attachments: attachments?.map((att) => ({
-				content: att.content,
-				filename: att.filename,
-				type: att.type,
-				disposition: att.disposition,
-				contentId: att.contentId,
-			})),
-			headers: buildThreadingHeaders(originalMsgId, references),
-		}).catch((e) => {
+		(async () => {
+			const sent = await sendEmail(c.env.EMAIL, {
+				to,
+				cc,
+				bcc,
+				from,
+				subject,
+				html,
+				text,
+				attachments: attachments?.map((att) => ({
+					content: att.content,
+					filename: att.filename,
+					type: att.type,
+					disposition: att.disposition,
+					contentId: att.contentId,
+				})),
+				headers: buildThreadingHeaders(originalMsgId, references),
+			});
+			if (sent.providerMessageId) {
+				await stub.updateEmailMessageId(messageId, sent.providerMessageId);
+			}
+		})().catch((e) => {
 			console.error("Deferred reply delivery failed:", (e as Error).message);
 		}),
 	);
@@ -174,22 +179,27 @@ export async function handleForwardEmail(c: AppContext) {
 	);
 
 	c.executionCtx.waitUntil(
-		sendEmail(c.env.EMAIL, {
-			to,
-			cc,
-			bcc,
-			from,
-			subject,
-			html,
-			text,
-			attachments: attachments?.map((att) => ({
-				content: att.content,
-				filename: att.filename,
-				type: att.type,
-				disposition: att.disposition,
-				contentId: att.contentId,
-			})),
-		}).catch((e) => {
+		(async () => {
+			const sent = await sendEmail(c.env.EMAIL, {
+				to,
+				cc,
+				bcc,
+				from,
+				subject,
+				html,
+				text,
+				attachments: attachments?.map((att) => ({
+					content: att.content,
+					filename: att.filename,
+					type: att.type,
+					disposition: att.disposition,
+					contentId: att.contentId,
+				})),
+			});
+			if (sent.providerMessageId) {
+				await stub.updateEmailMessageId(messageId, sent.providerMessageId);
+			}
+		})().catch((e) => {
 			console.error("Deferred forward delivery failed:", (e as Error).message);
 		}),
 	);
