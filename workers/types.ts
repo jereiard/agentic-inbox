@@ -5,4 +5,6 @@
 export interface Env extends Cloudflare.Env {
 	POLICY_AUD: string;
 	TEAM_DOMAIN: string;
+	/** Resend API key. The existing EMAIL name is retained for compatibility. */
+	EMAIL: string;
 }
