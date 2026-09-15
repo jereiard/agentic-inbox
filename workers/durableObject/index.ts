@@ -528,7 +528,10 @@ export class MailboxDO extends DurableObject<Env> {
 
 	async updateEmailMessageId(id: string, messageId: string) {
 		const current = this.db
-			.select({ raw_headers: schema.emails.raw_headers })
+			.select({
+				raw_headers: schema.emails.raw_headers,
+				thread_id: schema.emails.thread_id,
+			})
 			.from(schema.emails)
 			.where(eq(schema.emails.id, id))
 			.get();
@@ -555,7 +558,13 @@ export class MailboxDO extends DurableObject<Env> {
 
 		this.db
 			.update(schema.emails)
-			.set({ message_id: messageId, ...(rawHeaders ? { raw_headers: rawHeaders } : {}) })
+			.set({
+				message_id: messageId,
+				// A newly-sent message starts with thread_id === its internal id.
+				// Replace only that temporary root with the actual SMTP Message-ID.
+				...(current?.thread_id === id ? { thread_id: messageId } : {}),
+				...(rawHeaders ? { raw_headers: rawHeaders } : {}),
+			})
 			.where(eq(schema.emails.id, id))
 			.run();
 

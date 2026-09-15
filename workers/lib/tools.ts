@@ -525,7 +525,7 @@ export async function toolSendEmail(
 			body: sanitizedBody,
 			in_reply_to: null,
 			email_references: null,
-			thread_id: messageId,
+			thread_id: providerMessageId ?? messageId,
 			message_id: providerMessageId ?? outgoingMessageId,
 		},
 		[],
