@@ -7,4 +7,6 @@ export interface Env extends Cloudflare.Env {
 	TEAM_DOMAIN: string;
 	/** Resend API key. The existing EMAIL name is retained for compatibility. */
 	EMAIL: string;
+	/** Ollama Cloud API key used by the email agent and auto-draft model. */
+	OLLAMA_API_KEY: string;
 }

@@ -4,3 +4,6 @@ TEAM_DOMAIN=https://your-team.cloudflareaccess.com
 
 # Resend API key used for outbound email.
 EMAIL=re_xxxxxxxxx
+
+# Ollama Cloud API key used by the email agent and auto-draft model.
+OLLAMA_API_KEY=ollama_xxxxxxxxx
