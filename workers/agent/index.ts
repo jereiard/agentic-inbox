@@ -35,98 +35,6 @@ import type { Env } from "../types";
 const OLLAMA_BASE_URL = "https://ollama.com";
 const OLLAMA_MODEL = "deepseek-v4.1-flash:cloud";
 
-function formatDiagnosticError(error: unknown, depth = 0): unknown {
-	if (depth > 4) return "<max-depth>";
-	if (error instanceof Error) {
-		const value = error as Error & Record<string, unknown>;
-		return {
-			name: error.name,
-			message: error.message,
-			stack: error.stack,
-			...(value.status !== undefined ? { status: value.status } : {}),
-			...(value.statusCode !== undefined ? { statusCode: value.statusCode } : {}),
-			...(value.status_code !== undefined ? { status_code: value.status_code } : {}),
-			...(value.error !== undefined ? { error: value.error } : {}),
-			...(value.reason !== undefined ? { reason: value.reason } : {}),
-			...(value.lastError !== undefined
-				? { lastError: formatDiagnosticError(value.lastError, depth + 1) }
-				: {}),
-			...(Array.isArray(value.errors)
-				? { errors: value.errors.map((item) => formatDiagnosticError(item, depth + 1)) }
-				: {}),
-			...(error.cause !== undefined
-				? { cause: formatDiagnosticError(error.cause, depth + 1) }
-				: {}),
-		};
-	}
-
-	if (error && typeof error === "object") {
-		try {
-			return JSON.parse(JSON.stringify(error));
-		} catch {
-			return String(error);
-		}
-	}
-
-	return error;
-}
-
-const ollamaDiagnosticFetch: typeof fetch = async (input, init) => {
-	const url =
-		typeof input === "string"
-			? input
-			: input instanceof URL
-				? input.toString()
-				: input.url;
-	const method = init?.method || (input instanceof Request ? input.method : "GET");
-
-	let requestSummary = "";
-	if (typeof init?.body === "string") {
-		try {
-			const body = JSON.parse(init.body) as {
-				model?: string;
-				stream?: boolean;
-				messages?: unknown[];
-				tools?: unknown[];
-			};
-			requestSummary =
-				` model=${body.model ?? "<unknown>"}` +
-				` stream=${body.stream ?? "<unset>"}` +
-				` messages=${body.messages?.length ?? 0}` +
-				` tools=${body.tools?.length ?? 0}`;
-		} catch {
-			requestSummary = ` bodyChars=${init.body.length}`;
-		}
-	}
-
-	console.log(`[ollama:http] request method=${method} url=${url}${requestSummary}`);
-
-	try {
-		const response = await fetch(input, init);
-		console.log(
-			`[ollama:http] response status=${response.status} statusText=${response.statusText || "<none>"} contentType=${response.headers.get("content-type") ?? "<none>"}`,
-		);
-
-		if (!response.ok) {
-			let body = "<unreadable>";
-			try {
-				body = (await response.clone().text()).slice(0, 2000);
-			} catch {
-				// Keep the response intact even if the diagnostic clone cannot be read.
-			}
-			console.error(`[ollama:http] error status=${response.status} body=${body}`);
-		}
-
-		return response;
-	} catch (error) {
-		console.error(
-			"[ollama:http] fetch threw",
-			JSON.stringify(formatDiagnosticError(error)),
-		);
-		throw error;
-	}
-};
-
 function createOllamaCloud(env: Env) {
 	if (!env.OLLAMA_API_KEY) {
 		throw new Error("OLLAMA_API_KEY is not configured");
@@ -134,8 +42,7 @@ function createOllamaCloud(env: Env) {
 
 	return createOllama({
 		baseURL: OLLAMA_BASE_URL,
-		apiKey: env.OLLAMA_API_KEY,
-		fetch: ollamaDiagnosticFetch,
+		apiKey: env.OLLAMA_API_KEY.trim(),
 	});
 }
 
@@ -391,27 +298,13 @@ export class EmailAgent extends AIChatAgent<any> {
 			model: ollama(OLLAMA_MODEL),
 			system: systemPrompt,
 			messages: await convertToModelMessages(this.messages),
-				tools,
-				stopWhen: stepCountIs(5),
-				onError: ({ error }) => {
-					console.error(
-						"[ollama:stream] error",
-						JSON.stringify(formatDiagnosticError(error)),
-					);
-				},
-				onFinish,
-			});
+			tools,
+			stopWhen: stepCountIs(5),
+			onFinish,
+		});
 
-			return result.toUIMessageStreamResponse({
-				onError: (error) => {
-					console.error(
-						"[ollama:ui-stream] error",
-						JSON.stringify(formatDiagnosticError(error)),
-					);
-					return "Agent request failed.";
-				},
-			});
-		}
+		return result.toUIMessageStreamResponse();
+	}
 
 	/**
 	 * Handle HTTP requests to the agent DO. Intercepts /onNewEmail
