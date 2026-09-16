@@ -9,7 +9,7 @@ import {
 	convertToModelMessages,
 	stepCountIs,
 } from "ai";
-import { createOllama } from "ai-sdk-ollama";
+import { createOllama } from "ai-sdk-ollama/browser";
 import { z } from "zod";
 import type { EmailFull, EmailMetadata } from "../lib/schemas";
 import { verifyDraft, isPromptInjection } from "../lib/ai";
