@@ -9,7 +9,7 @@ import {
 	convertToModelMessages,
 	stepCountIs,
 } from "ai";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { createOllama } from "ai-sdk-ollama";
 import { z } from "zod";
 import type { EmailFull, EmailMetadata } from "../lib/schemas";
 import { verifyDraft, isPromptInjection } from "../lib/ai";
@@ -32,7 +32,7 @@ import {
 import { Folders, FOLDER_TOOL_DESCRIPTION, MOVE_FOLDER_TOOL_DESCRIPTION } from "../../shared/folders";
 import type { Env } from "../types";
 
-const OLLAMA_BASE_URL = "https://ollama.com/v1";
+const OLLAMA_BASE_URL = "https://ollama.com";
 const OLLAMA_MODEL = "deepseek-v4.1-flash:cloud";
 
 function createOllamaCloud(env: Env) {
@@ -40,8 +40,7 @@ function createOllamaCloud(env: Env) {
 		throw new Error("OLLAMA_API_KEY is not configured");
 	}
 
-	return createOpenAICompatible({
-		name: "ollama-cloud",
+	return createOllama({
 		baseURL: OLLAMA_BASE_URL,
 		apiKey: env.OLLAMA_API_KEY,
 	});
